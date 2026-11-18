@@ -39,3 +39,5 @@ textarea { min-height: 5rem; }
 .note { color: var(--mute); }
 .err { color: var(--err); }
 @media (prefers-reduced-motion: no-preference) { button { transition: background .15s; } }
+.level { color: var(--olive); font-weight: 600; }
+.sub { display: block; color: var(--mute); }

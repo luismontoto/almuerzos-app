@@ -1,25 +1,34 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 
 export type LunchScore = {
   id: string; title: string | null; held_on: string; host_id: string
   host_name: string; avg_score: number | null; voters: number
 }
-type Criterion = { id: number; name: string; description: string | null }
+type Criterion = { id: number; name: string; question: string | null; description: string | null }
+
+const LEVELS = ['Flojo', 'Mejorable', 'Bien', 'Muy bien', 'Excelente']
 
 export default function Lunches({ userId }: { userId: string }) {
   const [lunches, setLunches] = useState<LunchScore[]>([])
   const [criteria, setCriteria] = useState<Criterion[]>([])
   const [open, setOpen] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  const firstLoad = useRef(true)
 
   async function load() {
     const [l, c] = await Promise.all([
       supabase.from('lunch_scores').select('*').order('held_on', { ascending: false }),
       supabase.from('criteria').select('*').order('position'),
     ])
-    setLunches((l.data ?? []) as LunchScore[])
+    const list = (l.data ?? []) as LunchScore[]
+    setLunches(list)
     setCriteria((c.data ?? []) as Criterion[])
+    if (firstLoad.current) {
+      firstLoad.current = false
+      const next = list.find((x) => x.host_id !== userId)
+      if (next) setOpen(next.id)
+    }
   }
   useEffect(() => { load() }, [])
 
@@ -30,7 +39,15 @@ export default function Lunches({ userId }: { userId: string }) {
         <button className="primary" onClick={() => setAdding(!adding)}>{adding ? 'Cancelar' : 'Anotar mi almuerzo'}</button>
       </div>
       {adding && <NewLunch userId={userId} onSaved={() => { setAdding(false); load() }} />}
-      {lunches.length === 0 && <p className="note">Aún no hay almuerzos. Anota el primero cuando te toque cocinar.</p>}
+      {lunches.length === 0 && (
+        <>
+          <p className="note">Aún no hay almuerzos. Anota el primero cuando te toque cocinar. Así valorarás los de tus amigos:</p>
+          <div className="card">
+            {criteria.map((c) => <div key={c.id}><strong>{c.question ?? c.name}</strong><small className="sub">{c.description}</small></div>)}
+            <p className="note">Respondes del 1 (flojo) al 5 (excelente).</p>
+          </div>
+        </>
+      )}
       <ul className="list">
         {lunches.map((l) => (
           <li key={l.id}>
@@ -88,9 +105,11 @@ function Rate({ lunchId, userId, criteria, onSaved }: {
       .then(({ data }) => setScores(Object.fromEntries((data ?? []).map((r) => [r.criterion_id, r.score]))))
   }, [lunchId, userId])
 
+  const done = criteria.filter((c) => scores[c.id]).length
+
   async function save() {
-    const rows = Object.entries(scores).map(([c, s]) => ({
-      lunch_id: lunchId, user_id: userId, criterion_id: Number(c), score: s,
+    const rows = criteria.map((c) => ({
+      lunch_id: lunchId, user_id: userId, criterion_id: c.id, score: scores[c.id],
     }))
     const { error } = await supabase.from('ratings').upsert(rows)
     setStatus(error ? error.message : 'Valoración guardada')
@@ -99,18 +118,23 @@ function Rate({ lunchId, userId, criteria, onSaved }: {
 
   return (
     <div className="card">
+      <p className="note">Del 1 (flojo) al 5 (excelente). {done} de {criteria.length} respondidas.</p>
       {criteria.map((c) => (
         <div key={c.id} className="crit">
-          <div><strong>{c.name}</strong><small>{c.description}</small></div>
-          <div className="stars" role="radiogroup" aria-label={c.name}>
+          <div>
+            <strong>{c.question ?? c.name}</strong>
+            <small>{c.description}</small>
+            {scores[c.id] && <small className="level">{LEVELS[scores[c.id] - 1]}</small>}
+          </div>
+          <div className="stars" role="radiogroup" aria-label={c.question ?? c.name}>
             {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} role="radio" aria-checked={scores[c.id] === n}
+              <button key={n} role="radio" aria-checked={scores[c.id] === n} title={LEVELS[n - 1]}
                 className={scores[c.id] === n ? 'on' : ''} onClick={() => setScores({ ...scores, [c.id]: n })}>{n}</button>
             ))}
           </div>
         </div>
       ))}
-      <button className="primary" disabled={Object.keys(scores).length === 0} onClick={save}>Guardar valoración</button>
+      <button className="primary" disabled={criteria.length === 0 || done < criteria.length} onClick={save}>Guardar valoración</button>
       {status && <p className="note">{status}</p>}
     </div>
   )

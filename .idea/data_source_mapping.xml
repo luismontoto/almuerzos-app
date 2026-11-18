@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourcePerFileMappings">
+    <file url="file://$PROJECT_DIR$/supabase/rubrica.sql" value="7ea15326-323e-4443-b430-e4704bc64b78" />
+    <file url="file://$PROJECT_DIR$/supabase/schema.sql" value="7ea15326-323e-4443-b430-e4704bc64b78" />
+  </component>
+</project>

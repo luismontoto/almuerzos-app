@@ -1,4 +1,4 @@
--- Ejecuta esto en Supabase > SQL Editor
+
 create table profiles (
   id uuid primary key references auth.users on delete cascade,
   display_name text not null
